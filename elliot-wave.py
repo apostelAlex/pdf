@@ -273,7 +273,7 @@ class ElliottWaveAnalyzer:
             if len(self.buy_signals) == 0:
                 print("Keine Kaufsignale zum Plotten vorhanden.")
             for i, signal_date in enumerate(self.buy_signals):
-                plt.axvline(x=signal_date, color='green', linestyle='--', alpha=0.6,
+                plt.axvline(x=signal_date, color='green', linestyle='--', alpha=0.1,
                             label='Kaufsignal' if i == 0 else None)
         
         plt.title(f'{self.ticker} Elliott-Wellen-Analyse')
@@ -292,7 +292,7 @@ class ElliottWaveAnalyzer:
 
 
 def analyze_microsoft():
-    analyzer = ElliottWaveAnalyzer(ticker="SAP.DE", period="1y")
+    analyzer = ElliottWaveAnalyzer(ticker="MSFT", period="10y")
     analyzer.fetch_data()
     patterns = analyzer.detect_elliott_waves()
     
