@@ -273,16 +273,23 @@ class OptionsAnalyzer:
 
         # 1. Dividendenrendite holen (optional, aber empfohlen)
         try:
-            # Versuche, die Dividendenrendite von yfinance zu bekommen
-            # stock.info kann manchmal langsam oder unzuverlässig sein
             dividend_yield = self.stock.info.get('dividendYield', 0.0)
-            if dividend_yield is None: # Manchmal gibt yfinance None zurück
+            if dividend_yield is None:
                 dividend_yield = 0.0
+
+            # --- SANITY CHECK ---
+            MAX_REASONABLE_YIELD = 0.15 # Beispiel: 15% als Obergrenze
+            if not (0 <= dividend_yield <= MAX_REASONABLE_YIELD):
+                print(f"Warning: Unrealistic dividend yield fetched: {dividend_yield:.4f}. Check data source for {self.ticker}. Resetting to 0.0 for calculation.")
+                dividend_yield = 0.0
+            # --- END SANITY CHECK ---
+
             print(f"Using dividend yield (q): {dividend_yield:.4f}")
+
         except Exception as e:
             print(f"Warning: Could not fetch dividend yield for {self.ticker}, assuming 0. Error: {e}")
             dividend_yield = 0.0
-        q = dividend_yield # Kürzerer Name für die Formeln
+        q = dividend_yield
 
         # Sicherstellen, dass Daten vorhanden sind
         if self.calls.empty or self.puts.empty:
@@ -478,7 +485,7 @@ class OptionsAnalyzer:
         )
 
         return total_exposure.reset_index() # Gib DF mit Strike als Spalte zurück
-        
+
 
     def detect_gamma_flip(self):
         """
