@@ -176,17 +176,40 @@ class ElliottWaveAnalyzer:
     def generate_daily_signals(self):
         """Analysiere für jeden Tag, ob ein Kaufsignal vorliegt"""
         self.buy_signals = []
+        buy_condition_active = False
 
         for i in range(50, len(self.data)):
             window_data = self.data.iloc[:i+1].copy()
             self.data_slice = window_data  # temporär überschreiben
             current_price = float(window_data['Close'].iloc[-1])
-            sma20 = float(window_data['Close'].rolling(window=20).mean().iloc[-1])
-            sma50 = float(window_data['Close'].rolling(window=50).mean().iloc[-1])
+            sma20_today = float(window_data['Close'].rolling(window=20).mean().iloc[-1])
+            sma50_today = float(window_data['Close'].rolling(window=50).mean().iloc[-1])
+            
+            # Hole Vortageswerte (sofern verfügbar)
+            if i >= 51:
+                current_price_prev = float(window_data['Close'].iloc[-2])
+                sma20_prev = float(window_data['Close'].rolling(window=20).mean().iloc[-2])
+                sma50_prev = float(window_data['Close'].rolling(window=50).mean().iloc[-2])
+            else:
+                current_price_prev = current_price
+                sma20_prev = sma20_today
+                sma50_prev = sma50_today
 
-            if current_price > sma20 and sma20 > sma50:
+            # Bedingung: aktueller Preis über SMA20 und SMA20 über SMA50
+            # und zusätzlich steigen alle drei Werte im Vergleich zum Vortag
+            condition = (
+                current_price > sma20_today and sma20_today > sma50_today and
+                current_price > current_price_prev and
+                sma20_today > sma20_prev and
+                sma50_today > sma50_prev
+            )
+
+            if condition and not buy_condition_active:
                 self.buy_signals.append(window_data.index[-1])
                 print(f"Kaufsignal erkannt am {window_data.index[-1].date()}")
+                buy_condition_active = True
+            elif not condition and buy_condition_active:
+                buy_condition_active = False
 
         self.data_slice = None  # Reset
     
@@ -292,7 +315,7 @@ class ElliottWaveAnalyzer:
 
 
 def analyze_microsoft():
-    analyzer = ElliottWaveAnalyzer(ticker="MSFT", period="10y")
+    analyzer = ElliottWaveAnalyzer(ticker="MSFT", period="1y")
     analyzer.fetch_data()
     patterns = analyzer.detect_elliott_waves()
     
