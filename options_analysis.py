@@ -270,6 +270,37 @@ class OptionsAnalyzer:
             pandas.DataFrame: DataFrame with aggregated Greeks by strike price, or None if fails.
         """
         # --- Verbesserungen starten hier ---
+        # --- Add Robust Filtering ---
+        min_iv = 0.01 # 1%
+        max_iv = 5.00 # 500%
+        min_oi = 1 # Minimum Open Interest
+
+        self.calls = self.calls[
+            (self.calls['openInterest'].fillna(0) >= min_oi) &
+            (self.calls['impliedVolatility'].notna()) &
+            (self.calls['impliedVolatility'] >= min_iv) &
+            (self.calls['impliedVolatility'] <= max_iv)
+            # Add bid/ask spread filter if desired/available
+            # (self.calls['ask'].fillna(0) > 0) &
+            # (self.calls['bid'].fillna(0) > 0) &
+            # ((self.calls['ask'] - self.calls['bid']) / self.calls['ask'] < 0.5) # e.g., spread < 50%
+        ].copy() # Use .copy() to avoid SettingWithCopyWarning
+
+        self.puts = self.puts[
+            (self.puts['openInterest'].fillna(0) >= min_oi) &
+            (self.puts['impliedVolatility'].notna()) &
+            (self.puts['impliedVolatility'] >= min_iv) &
+            (self.puts['impliedVolatility'] <= max_iv)
+            # Add bid/ask spread filter if desired/available
+            # (self.puts['ask'].fillna(0) > 0) &
+            # (self.puts['bid'].fillna(0) > 0) &
+            # ((self.puts['ask'] - self.puts['bid']) / self.puts['ask'] < 0.5) # e.g., spread < 50%
+        ].copy()
+
+        if self.calls.empty or self.puts.empty:
+            print("Error: Calls or Puts DataFrame is empty after ROBUST filtering.")
+            return None
+        # --- End Robust Filtering ---
 
         # 1. Dividendenrendite holen (optional, aber empfohlen)
         try:
