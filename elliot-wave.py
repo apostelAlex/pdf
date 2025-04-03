@@ -3,15 +3,28 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
 from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+
+@dataclass
+class AnalysisParameters:
+    ticker: str = "MSFT"
+    period: str = "1y"
+    sma_short: int = 20
+    sma_long: int = 50
+    extrema_window: int = 10
+    fibonacci_levels: list = field(default_factory=lambda: [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.618])
 
 class ElliottWaveAnalyzer:
-    def __init__(self, ticker="MSFT", period="1y"):
-        self.ticker = ticker
-        self.period = period
+
+    def __init__(self, params: AnalysisParameters = None):
+        self.params = params or AnalysisParameters()
+        self.ticker = self.params.ticker
+        self.period = self.params.period
         self.data = None
         self.wave_patterns = None
-        self.fibonacci_levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.618]
+        self.fibonacci_levels = self.params.fibonacci_levels
         self.buy_signals = []
+        self.sell_signals = []
 
     def fetch_data(self):
         """Lade Microsoft-Aktiendaten herunter"""
@@ -212,6 +225,38 @@ class ElliottWaveAnalyzer:
                 buy_condition_active = False
 
         self.data_slice = None  # Reset
+    def generate_daily_sell_signals(self):
+        self.sell_signals = []
+        sell_condition_active = False
+
+        for i in range(50, len(self.data)):
+            window_data = self.data.iloc[:i+1].copy()
+            current_price = float(window_data['Close'].iloc[-1])
+            sma20_today = float(window_data['Close'].rolling(window=20).mean().iloc[-1])
+            sma50_today = float(window_data['Close'].rolling(window=50).mean().iloc[-1])
+
+            if i >= 51:
+                current_price_prev = float(window_data['Close'].iloc[-2])
+                sma20_prev = float(window_data['Close'].rolling(window=20).mean().iloc[-2])
+                sma50_prev = float(window_data['Close'].rolling(window=50).mean().iloc[-2])
+            else:
+                current_price_prev = current_price
+                sma20_prev = sma20_today
+                sma50_prev = sma50_today
+
+            condition = (
+                current_price < sma20_today and sma20_today < sma50_today and
+                current_price < current_price_prev and
+                sma20_today < sma20_prev and
+                sma50_today < sma50_prev
+            )
+
+            if condition and not sell_condition_active:
+                self.sell_signals.append(window_data.index[-1])
+                print(f"Verkaufssignal erkannt am {window_data.index[-1].date()}")
+                sell_condition_active = True
+            elif not condition and sell_condition_active:
+                sell_condition_active = False
     
     def plot_analysis(self):
         """Plotte die Aktiendaten mit identifizierten Elliott-Wellen"""
@@ -226,8 +271,8 @@ class ElliottWaveAnalyzer:
             plt.grid(True, alpha=0.3)
             
             # Add SMA lines for reference
-            sma20 = self.data['Close'].rolling(window=20).mean()
-            sma50 = self.data['Close'].rolling(window=50).mean()
+            sma20 = self.data['Close'].rolling(window=self.params.sma_short).mean()
+            sma50 = self.data['Close'].rolling(window=self.params.sma_long).mean()
             plt.plot(self.data.index, sma20, 'g--', label='SMA 20')
             plt.plot(self.data.index, sma50, 'r--', label='SMA 50')
             
@@ -238,7 +283,13 @@ class ElliottWaveAnalyzer:
                 for i, signal_date in enumerate(self.buy_signals):
                     plt.axvline(x=signal_date, color='green', linestyle='--', alpha=0.6,
                                 label='Kaufsignal' if i == 0 else None)
-            
+
+            if hasattr(self, "sell_signals"):
+                if len(self.sell_signals) == 0:
+                    print("Keine Verkaufssignale zum Plotten vorhanden.")
+                for i, signal_date in enumerate(self.sell_signals):
+                    plt.axvline(x=signal_date, color='red', linestyle='--', alpha=0.6,
+                                label='Verkaufssignal' if i == 0 else None) 
             plt.legend()
             
             # Show current recommendation
@@ -312,10 +363,45 @@ class ElliottWaveAnalyzer:
         
         plt.tight_layout()
         plt.show()
+        
+    def calculate_strategy_return(self):
+        if not self.buy_signals or not self.sell_signals:
+            print("Nicht genug Signale zur Berechnung der Rendite.")
+            return
 
+        trades = []
+        buy_iter = iter(self.buy_signals)
+        sell_iter = iter(self.sell_signals)
+        current_buy = next(buy_iter, None)
+        current_sell = next(sell_iter, None)
+
+        while current_buy and current_sell:
+            if current_sell > current_buy:
+                buy_price = self.data.loc[current_buy]['Close']
+                sell_price = self.data.loc[current_sell]['Close']
+                trades.append((buy_price, sell_price))
+                current_buy = next(buy_iter, None)
+                current_sell = next(sell_iter, None)
+            else:
+                current_sell = next(sell_iter, None)
+
+        if trades:
+            returns = [(sell - buy) / buy for buy, sell in trades]
+            total_return = np.prod([1 + r for r in returns]) - 1
+            print(f"Gesamtrendite über alle Trades: {total_return * 100:.2f}%")
+        else:
+            print("Keine gültigen Trade-Paare gefunden.")
 
 def analyze_microsoft():
-    analyzer = ElliottWaveAnalyzer(ticker="MSFT", period="1y")
+
+    params = AnalysisParameters(
+        ticker="MSFT",
+        period="1y",
+        sma_short=20,
+        sma_long=50,
+        extrema_window=10
+    )
+    analyzer = ElliottWaveAnalyzer(params)
     analyzer.fetch_data()
     patterns = analyzer.detect_elliott_waves()
     
@@ -337,6 +423,8 @@ def analyze_microsoft():
         print(recommendation)
     
     analyzer.generate_daily_signals()
+    analyzer.generate_daily_sell_signals()
+    analyzer.calculate_strategy_return()
     
     print("\nDiese Analyse kombiniert die 'Wellen-Teilchen-Dualität' in der Finanzwelt:")
     print("- Wellenförmige Analyse: Elliott-Wellen-Muster und Zyklen")
