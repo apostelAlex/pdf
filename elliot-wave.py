@@ -11,7 +11,8 @@ class ElliottWaveAnalyzer:
         self.data = None
         self.wave_patterns = None
         self.fibonacci_levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.618]
-    
+        self.buy_signals = []
+
     def fetch_data(self):
         """Lade Microsoft-Aktiendaten herunter"""
         print(f"Lade Daten für {self.ticker}...")
@@ -172,6 +173,23 @@ class ElliottWaveAnalyzer:
             else:
                 return f"NEUTRAL: Gemischte Signale bei {current_price}. Weitere Analysen empfohlen."
 
+    def generate_daily_signals(self):
+        """Analysiere für jeden Tag, ob ein Kaufsignal vorliegt"""
+        self.buy_signals = []
+
+        for i in range(50, len(self.data)):
+            window_data = self.data.iloc[:i+1].copy()
+            self.data_slice = window_data  # temporär überschreiben
+            current_price = float(window_data['Close'].iloc[-1])
+            sma20 = float(window_data['Close'].rolling(window=20).mean().iloc[-1])
+            sma50 = float(window_data['Close'].rolling(window=50).mean().iloc[-1])
+
+            if current_price > sma20 and sma20 > sma50:
+                self.buy_signals.append(window_data.index[-1])
+                print(f"Kaufsignal erkannt am {window_data.index[-1].date()}")
+
+        self.data_slice = None  # Reset
+    
     def plot_analysis(self):
         """Plotte die Aktiendaten mit identifizierten Elliott-Wellen"""
         if self.wave_patterns is None or len(self.wave_patterns) == 0:
@@ -189,6 +207,14 @@ class ElliottWaveAnalyzer:
             sma50 = self.data['Close'].rolling(window=50).mean()
             plt.plot(self.data.index, sma20, 'g--', label='SMA 20')
             plt.plot(self.data.index, sma50, 'r--', label='SMA 50')
+            
+            # Zeichne grüne senkrechte Linien für Kaufsignale
+            if hasattr(self, "buy_signals"):
+                if len(self.buy_signals) == 0:
+                    print("Keine Kaufsignale zum Plotten vorhanden.")
+                for i, signal_date in enumerate(self.buy_signals):
+                    plt.axvline(x=signal_date, color='green', linestyle='--', alpha=0.6,
+                                label='Kaufsignal' if i == 0 else None)
             
             plt.legend()
             
@@ -242,6 +268,14 @@ class ElliottWaveAnalyzer:
                 plt.axhline(y=price, linestyle='--', alpha=0.5, color='green',
                            label=f'Fib {fib}' if fib in [0.382, 0.5, 0.618] else "")
         
+        # Zeichne grüne senkrechte Linien für Kaufsignale
+        if hasattr(self, "buy_signals"):
+            if len(self.buy_signals) == 0:
+                print("Keine Kaufsignale zum Plotten vorhanden.")
+            for i, signal_date in enumerate(self.buy_signals):
+                plt.axvline(x=signal_date, color='green', linestyle='--', alpha=0.6,
+                            label='Kaufsignal' if i == 0 else None)
+        
         plt.title(f'{self.ticker} Elliott-Wellen-Analyse')
         plt.xlabel('Datum')
         plt.ylabel('Preis ($)')
@@ -258,7 +292,7 @@ class ElliottWaveAnalyzer:
 
 
 def analyze_microsoft():
-    analyzer = ElliottWaveAnalyzer(ticker="MSFT", period="1y")
+    analyzer = ElliottWaveAnalyzer(ticker="SAP.DE", period="1y")
     analyzer.fetch_data()
     patterns = analyzer.detect_elliott_waves()
     
@@ -278,6 +312,8 @@ def analyze_microsoft():
         print("\nKaufempfehlung basierend auf alternativen Indikatoren:")
         recommendation = analyzer.make_buy_recommendation()
         print(recommendation)
+    
+    analyzer.generate_daily_signals()
     
     print("\nDiese Analyse kombiniert die 'Wellen-Teilchen-Dualität' in der Finanzwelt:")
     print("- Wellenförmige Analyse: Elliott-Wellen-Muster und Zyklen")
