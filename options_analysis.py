@@ -50,7 +50,11 @@ class OptionsAnalyzer:
         """
         self.ticker = ticker
         self.stock = yf.Ticker(ticker)
-        self.current_price = self.stock.history(period="1d")['Close'].iloc[-1]
+        history = self.stock.history(period="2d")
+        if len(history) > 1:
+            self.current_price = history['Close'].iloc[-2]  # Gestern
+        else:
+            self.current_price = history['Close'].iloc[-1]  # Fallback, falls nur ein Tag vorhanden
         self.today = datetime.datetime.now().date()
         self.days_to_expiry = days_to_expiry
         
