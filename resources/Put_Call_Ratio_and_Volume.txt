@@ -1,0 +1,52 @@
+Analyse der Put/Call-Ratio und Optionsvolumen
+1. Definition der Put/Call-Ratio
+Die Put/Call-Ratio (PCR) ist eine Kennzahl zur Bewertung der Marktstimmung anhand
+von Optionsdaten. Sie wird folgendermaßen definiert:
+PCR = VPut
+VCall
+(1)
+Dabei bezeichnet:
+• VPut: Handelsvolumen (oder Open Interest) von Put-Optionen
+• VCall: Handelsvolumen (oder Open Interest) von Call-Optionen
+2. Interpretation der Put/Call-Ratio
+2.1 Hohe Put/Call-Ratio (PCR ≫1)
+• Interpretation: Es werden deutlich mehr Puts gehandelt als Calls.
+• Marktstimmung: Pessimistisch – Absicherungsdruck oder Spekulation auf fallende
+Kurse.
+• Konträrsignal: Kann auf ein überverkauftes Marktumfeld hindeuten ⇒bullishes
+Reversal möglich.
+2.2 Niedrige Put/Call-Ratio (PCR ≪1)
+• Interpretation: Überwiegend Call-Optionen werden gehandelt.
+• Marktstimmung: Optimistisch bis euphorisch.
+• Konträrsignal: Mögliches Zeichen für überkaufte Märkte ⇒Korrekturrisiko steigt.
+3. Rolle des Optionsvolumens
+Ein hohes Gesamtvolumen in Optionen signalisiert steigende Marktaktivität. Die Zusam-
+mensetzung ist entscheidend:
+1
+
+
+3.1 Hohes Put-Volumen
+• Hinweis auf Absicherungsbedarf institutioneller Anleger.
+• Kann kurzfristige Volatilität und Unsicherheit anzeigen.
+3.2 Hohes Call-Volumen
+• Kann spekulative Übertreibung anzeigen, insbesondere bei Retail-Investoren.
+• In Kombination mit niedriger PCR ein mögliches Warnsignal.
+4. Kombinierte Analyse
+Szenario
+Mögliche Implikation
+Hohe PCR + hohes Put-Volumen
+Angst dominiert →überverkauft?
+Niedrige PCR + hohes Call-Volumen
+Euphorie →Überkauft, Risiko steigt
+Steigende PCR + fallende Kurse
+Bestätigung bärischer Dynamik
+Sinkende PCR + steigende Kurse
+Bestätigung bullisher Trend
+Tabelle 1: Beispiele für PCR-Ausprägungen
+5. Fazit
+Die Put/Call-Ratio ist ein wertvoller Sentimentindikator. Ihre Aussagekraft steigt in Kom-
+bination mit Volumina und Kursverhalten. Besonders relevant ist ihre konträre Deutung
+bei Extremwerten.
+2
+
+

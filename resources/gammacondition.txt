@@ -1,0 +1,54 @@
+Die Gamma-Bedingung im Optionshandel
+Grundlagen
+In der Finanzmathematik ist Gamma eine der sogenannten Griechen und bezeichnet die
+Rate der ¨Anderung des Delta einer Option in Bezug auf den Preis des Basiswertes S:
+Γ = ∂2V
+∂S2 = ∂∆
+∂S
+(1)
+wobei:
+• V : Wert der Option
+• S: Preis des Basiswertes
+• ∆= ∂V
+∂S : Delta
+Gamma Condition
+Die Gamma-Bedingung beschreibt die gew¨unschte Gamma-Position eines Portfolios:
+• Positive Gamma: Das Delta steigt, wenn der Kurs steigt, und f¨allt, wenn der Kurs
+f¨allt.
+• Negative Gamma: Das Delta f¨allt, wenn der Kurs steigt, und steigt, wenn der
+Kurs f¨allt.
+Effekte
+Positive Gamma
+• Kommt h¨aufig bei Long-Optionen (z.B. Long Call, Long Put) vor.
+• Profitiert von starker Kursbewegung in beide Richtungen.
+• Portfolio reagiert nichtlinear positiv auf Volatilit¨at.
+• H¨ohere Sensitivit¨at: Hedging wird schwieriger, aber gewinnbringend bei Bewegung.
+1
+
+
+Negative Gamma
+• Entsteht bei Short-Optionen (z.B. Short Straddle).
+• Verluste bei starker Kursbewegung, Gewinne bei Seitw¨artsbewegung.
+• Erfordert h¨aufiges Rebalancing zur Deltakontrolle.
+• Erh¨oht das Risiko bei unerwarteten Marktbewegungen.
+Marktdynamik bei negativem Gamma
+Bei negativem Gamma muss ein Market Maker bei steigenden Kursen mehr kaufen und
+bei fallenden mehr verkaufen. Dieses prozyklische Hedging verst¨arkt die Kursbewegung
+und kann zu erh¨ohter intraday Volatilit¨at f¨uhren.
+Eine Umgebung mit hohem Put-Open-Interest deutet auf eine put-dominierte Struk-
+tur hin. Da Market Maker h¨aufig die Gegenpartei zu diesen Puts sind, befinden sie sich
+in einer Short-Gamma-Position.
+• Effekt: Volatilit¨at nimmt bei gr¨oßeren Marktbewegungen tendenziell zu.
+• Implikation: Instabile Kursdynamik, insbesondere bei Durchbr¨uchen wichtiger Preis-
+niveaus.
+Marktdynamik bei positivem Gamma
+Bei positivem Gamma bewegen sich Hedging-Aktivit¨aten antizyklisch: Market Maker
+kaufen bei fallenden Kursen und verkaufen bei steigenden Kursen. Dies wirkt stabilisie-
+rend auf die Kursentwicklung.
+• Effekt: Abnahme der Volatilit¨at bei st¨arkeren Bewegungen.
+• Implikation: Unterst¨utzt ruhige, kontrollierte Kursverl¨aufe – typisch bei hoher
+Call-Dominanz.
+Visualisierung
+2
+
+

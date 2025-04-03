@@ -1,0 +1,58 @@
+Gamma und Delta Exposure: Grundlagen und Effekte
+1. Grundlagen
+Delta Exposure misst die Sensitivit¨at des Portfoliowerts gegen¨uber kleinen Preis¨anderungen
+des Underlyings:
+∆= ∂V
+∂S
+Delta Exposure =
+X
+i
+∆i · Ni
+wobei V der Optionswert, S der Preis des Underlyings und Ni die Positionsgr¨oße ist.
+1.1 Positives vs. Negatives Delta
+∆> 0
+⇒
+Positionswert steigt mit steigendem Underlying
+∆< 0
+⇒
+Positionswert sinkt mit steigendem Underlying
+• Call-Optionen: haben typischerweise ein positives Delta (zwischen 0 und +1).
+• Put-Optionen: haben typischerweise ein negatives Delta (zwischen 0 und –1).
+• Delta Exposure ¿ 0: das Portfolio profitiert von steigenden Kursen.
+• Delta Exposure ¡ 0: das Portfolio profitiert von fallenden Kursen.
+Gamma Exposure beschreibt die ¨Anderungsrate des Deltas bei Preisver¨anderungen:
+Γ = ∂2V
+∂S2
+Gamma Exposure =
+X
+i
+Γi · Ni · (∆S)2
+2. Effekte von Gamma Exposure
+2.1 Positives Gamma Exposure
+• Delta ver¨andert sich langsamer und entgegen der Preisbewegung.
+• Market Maker m¨ussen gegenl¨aufig handeln (kaufen bei fallenden Kursen, ver-
+kaufen bei steigenden).
+• Wirkt stabilisierend auf den Markt.
+• F¨uhrt zu geringerer Volatilit¨at und ruhigeren Preisbewegungen.
+• Intensit¨at der Wirkung nimmt mit H¨ohe der Gamma Exposure zu.
+1
+
+
+2.2 Negatives Gamma Exposure
+• Delta ver¨andert sich schnell und in Richtung der Preisbewegung.
+• Market Maker m¨ussen prozyklisch handeln (kaufen bei steigenden Kursen, ver-
+kaufen bei fallenden).
+• Wirkt destabilisierend und verst¨arkt Preisbewegungen.
+• Kann zu Volatilit¨ats-Clustern und pl¨otzlichen Kursausschl¨agen f¨uhren.
+• Je gr¨oßer die negative Gamma Exposure, desto extremer die potenziellen Bewegun-
+gen.
+3. Zusammenfassung
+• Delta Exposure = Richtung und St¨arke der Kursabh¨angigkeit.
+• Gamma Exposure = Beschleunigung dieser Abh¨angigkeit.
+• Positive Gamma: d¨ampfend, stabilisierend.
+• Negative Gamma: verst¨arkend, potenziell explosiv.
+• Die Intensit¨at beider h¨angt direkt von der Optionsstruktur und den Positionsgr¨oßen
+ab.
+2
+
+

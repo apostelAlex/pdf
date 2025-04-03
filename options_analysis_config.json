@@ -1,0 +1,5 @@
+{
+    "tickers": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "JPM", "V", "UNH"],
+    "days_to_expiry": 90,
+    "output_directory": null
+}

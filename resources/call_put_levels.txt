@@ -1,0 +1,66 @@
+Call- und Put-Levels: Marktmechanismen und
+Preisniveaus
+Einleitung
+Optionen bieten nicht nur Absicherung, sondern spiegeln auch Markterwartungen wider.
+Besonders das Open Interest (offene Kontrakte) bei bestimmten Strikes erzeugt Effekte
+auf den Basiswert. Wir untersuchen hier, wie Call- und Put-Levels als Unterstützungen
+(Supports) und Widerstände (Resistenzen) wirken.
+1. Put- und Call-Level als Preisbarrieren
+Put-Level (unter dem aktuellen Preis)
+Hohe Open-Interest-Werte bei Put-Optionen nahe unter dem aktuellen Preis wirken oft
+als Unterstützungszonen.
+Mechanismus:
+Market Maker sind häufig Short in diesen Puts. Fällt der Kurs, müssen
+sie hedgen, indem sie den Basiswert kaufen, um sich abzusichern. Dies erzeugt Kaufdruck:
+Hedge-Kaufmenge ∝
+
+∂VPut
+∂S
+ = |∆|
+(Delta-Hedging)
+Call-Level (über dem aktuellen Preis)
+Hohe Call-Interessen erzeugen Widerstände. Wenn der Kurs steigt, verkaufen Market
+Maker diese Calls und hedgen mit Verkäufen des Underlyings, was Verkaufsdruck erzeugt:
+Hedge-Verkauf ∝∆> 0
+2. Technische Begriffe im Kontext
+Support / Unterstützung
+Ein Niveau, bei dem Nachfrage überwiegt und Kursrückgänge gestoppt werden. In der
+Optionswelt:
+• Strike-Preis mit viel Put-Open-Interest
+• Market Maker kaufen bei Kursrückgängen zur Absicherung
+1
+
+
+Resistance / Widerstand
+Ein Niveau, bei dem Angebot überwiegt und Kursanstiege gebremst werden:
+• Strike-Preis mit viel Call-Open-Interest
+• Market Maker verkaufen bei Kursanstiegen
+3. Weitere relevante Konzepte
+Gamma Exposure (GEX )
+Gamma beschreibt die Änderungsrate des Deltas:
+Γ = ∂2V
+∂S2
+Ist das Gamma hoch, reagieren Market Maker stark auf Preisänderungen und erzeugen
+Instabilität:
+• Positive Gamma: Stabilisierung (Market Maker kaufen tief, verkaufen hoch)
+• Negative Gamma: Destabilisierung (Market Maker verkaufen tief, kaufen hoch)
+Max Pain
+Der Maximalverlustpunkt ("Max Pain") ist jener Kurs, bei dem die Summe der Ver-
+luste aller Optionskäufer am größten ist. Er wird oft als magnetisches Preisziel zum Verfall
+betrachtet.
+Orderbuch-Effekte
+Echte Kauf- und Verkaufsorders (Limit Orders) können Widerstand bzw. Unterstützung
+erzeugen, unabhängig von Optionen. Besonders relevant:
+• Iceberg Orders
+• Large Bid/Ask Walls
+Technische Widerstände
+Klassische Charttechnik (z. B. gleitende Durchschnitte, Fibonacci-Retracements, Trendli-
+nien) ergänzt die Optionen-Analyse.
+Fazit
+Optionen bieten durch ihr Open Interest und ihr Hedging-Verhalten wichtige Hinweise
+auf Unterstützungs- und Widerstandsniveaus. Diese sollten mit klassischen technischen
+Indikatoren und Volumenprofilen kombiniert werden, um robuste Marktanalysen durch-
+zuführen.
+2
+
+

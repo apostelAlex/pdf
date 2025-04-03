@@ -435,6 +435,80 @@ def analyze_microsoft():
     
     return recommendation
 
+def parameter_grid_search():
+    import os
+    from itertools import product
+
+    tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "V", "UNH"]  # Beispiel: 10 Ticker – ggf. 100 ergänzen
+    sma_short_options = [10, 15, 20]
+    sma_long_options = [30, 50, 70]
+    extrema_window_options = [5, 10, 15]
+
+    os.makedirs("simulation_logs", exist_ok=True)
+
+    total_runs = 0
+    for ticker in tickers:
+        for sma_short, sma_long, extrema_window in product(sma_short_options, sma_long_options, extrema_window_options):
+            if sma_short >= sma_long:
+                continue  # Ignoriere unsinnige Kombinationen
+
+            params = AnalysisParameters(
+                ticker=ticker,
+                period="1y",
+                sma_short=sma_short,
+                sma_long=sma_long,
+                extrema_window=extrema_window
+            )
+            analyzer = ElliottWaveAnalyzer(params)
+            try:
+                analyzer.fetch_data()
+                analyzer.detect_elliott_waves()
+                analyzer.generate_daily_signals()
+                analyzer.generate_daily_sell_signals()
+
+                logfile = f"simulation_logs/{ticker}_{sma_short}_{sma_long}_{extrema_window}.log"
+                with open(logfile, "w") as f:
+                    f.write(f"Ticker: {ticker}\n")
+                    f.write(f"SMA short: {sma_short}, SMA long: {sma_long}, Extrema Window: {extrema_window}\n")
+                    if not analyzer.buy_signals or not analyzer.sell_signals:
+                        f.write("Unvollständige Signale – keine Rendite berechnet.\n")
+                    else:
+                        trades = []
+                        buy_iter = iter(analyzer.buy_signals)
+                        sell_iter = iter(analyzer.sell_signals)
+                        current_buy = next(buy_iter, None)
+                        current_sell = next(sell_iter, None)
+
+                        while current_buy and current_sell:
+                            if current_sell > current_buy:
+                                buy_price = float(analyzer.data.at[current_buy, 'Close'])
+                                sell_price = float(analyzer.data.at[current_sell, 'Close'])
+                                trades.append((buy_price, sell_price))
+                                current_buy = next(buy_iter, None)
+                                current_sell = next(sell_iter, None)
+                            else:
+                                current_sell = next(sell_iter, None)
+
+                        if trades:
+                            returns = [(sell - buy) / buy for buy, sell in trades]
+                            total_return = np.prod([1 + r for r in returns]) - 1
+                            f.write(f"Gesamtrendite: {total_return * 100:.2f}%\n")
+                            f.write(f"Anzahl Trades: {len(trades)}\n")
+                            for i, (buy, sell) in enumerate(trades):
+                                f.write(f"Trade {i+1}: Buy={buy:.2f}, Sell={sell:.2f}, Return={(sell - buy) / buy * 100:.2f}%\n")
+                        else:
+                            f.write("Keine gültigen Trade-Paare gefunden.\n")
+
+                total_runs += 1
+
+            except Exception as e:
+                with open(f"simulation_logs/{ticker}_error.log", "a") as f:
+                    f.write(f"Fehler bei {ticker} mit Parametern SMA {sma_short}/{sma_long}, Extrema {extrema_window}: {e}\n")
+                continue
+
+    print(f"Parameter-Simulation abgeschlossen: {total_runs} Kombinationen ausgeführt.")
+
 
 if __name__ == "__main__":
-    analyze_microsoft()
+    # analyze_microsoft()  # Deaktivieren für Simulation
+    parameter_grid_search()
