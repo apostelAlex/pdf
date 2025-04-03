@@ -259,110 +259,226 @@ class OptionsAnalyzer:
 
     def calculate_greeks(self, r=0.05, bins=20):
         """
-        Calculate option Greeks (delta, gamma) for analysis.
-        
+        Calculate option Greeks (delta, gamma) for analysis, incorporating dividend yield
+        and basic filtering.
+
         Args:
-            r (float): Risk-free rate
+            r (float): Risk-free rate (annualized)
             bins (int): Number of price bins for aggregating data
-        
+
         Returns:
-            pandas.DataFrame: DataFrame with aggregated Greeks by strike price
+            pandas.DataFrame: DataFrame with aggregated Greeks by strike price, or None if fails.
         """
-        # We use the pre-calculated impliedVolatility from yfinance
-        # and calculate approximate Greeks
-        
-        # Create strike price bins around current price
-        min_strike = min(self.calls['strike'].min(), self.puts['strike'].min())
-        max_strike = max(self.calls['strike'].max(), self.puts['strike'].max())
-        
-        strike_range = np.linspace(min_strike, max_strike, bins)
-        strike_bins = pd.cut(np.concatenate([self.calls['strike'], self.puts['strike']]), bins=bins)
-        
-        # Berechne Zeit bis Verfall in Jahren (T) und sichere gegen Division durch Null ab
+        # --- Verbesserungen starten hier ---
+
+        # 1. Dividendenrendite holen (optional, aber empfohlen)
+        try:
+            # Versuche, die Dividendenrendite von yfinance zu bekommen
+            # stock.info kann manchmal langsam oder unzuverlässig sein
+            dividend_yield = self.stock.info.get('dividendYield', 0.0)
+            if dividend_yield is None: # Manchmal gibt yfinance None zurück
+                dividend_yield = 0.0
+            print(f"Using dividend yield (q): {dividend_yield:.4f}")
+        except Exception as e:
+            print(f"Warning: Could not fetch dividend yield for {self.ticker}, assuming 0. Error: {e}")
+            dividend_yield = 0.0
+        q = dividend_yield # Kürzerer Name für die Formeln
+
+        # Sicherstellen, dass Daten vorhanden sind
+        if self.calls.empty or self.puts.empty:
+            print("Error: Calls or Puts DataFrame is empty before Greek calculation.")
+            return None
+
+        # 2. Daten filtern (optional, aber empfohlen)
+        # Entferne Optionen mit Null Open Interest oder fehlender IV
+        # Du könntest auch nach Volumen oder Bid/Ask-Spread filtern
+        self.calls = self.calls[self.calls['openInterest'].notna() & (self.calls['openInterest'] > 0)]
+        self.calls = self.calls[self.calls['impliedVolatility'].notna() & (self.calls['impliedVolatility'] > 1e-6)] # IV > 0
+        self.puts = self.puts[self.puts['openInterest'].notna() & (self.puts['openInterest'] > 0)]
+        self.puts = self.puts[self.puts['impliedVolatility'].notna() & (self.puts['impliedVolatility'] > 1e-6)] # IV > 0
+
+        if self.calls.empty or self.puts.empty:
+            print("Error: Calls or Puts DataFrame is empty after filtering.")
+            return None
+
+        # 3. Griechenberechnung mit Dividendenrendite (q)
+        S = self.current_price
+
+        # --- Calls ---
         T_calls = self.calls['daysToExpiry'] / 365.0
-        T_calls = T_calls.replace(0, 1/365.0)
+        T_calls = T_calls.replace(0, 1e-6) # Ersetze 0 durch einen sehr kleinen Wert statt 1/365
         sigma_calls = self.calls['impliedVolatility']
         K_calls = self.calls['strike']
-        S = self.current_price
-        d1_calls = (np.log(S / K_calls) + (r + 0.5 * sigma_calls**2) * T_calls) / (sigma_calls * np.sqrt(T_calls))
-        self.calls['delta'] = norm.cdf(d1_calls)
-        self.calls['gamma'] = norm.pdf(d1_calls) / (S * sigma_calls * np.sqrt(T_calls))
-        
+
+        # Berechne d1 und d2 mit Dividendenrendite q
+        # Handle potenzielle Fehler bei Logarithmus oder Division durch Null
+        with np.errstate(divide='ignore', invalid='ignore'): # Ignoriere Warnungen temporär
+            d1_calls = (np.log(S / K_calls) + (r - q + 0.5 * sigma_calls**2) * T_calls) / (sigma_calls * np.sqrt(T_calls))
+            d2_calls = d1_calls - sigma_calls * np.sqrt(T_calls)
+
+            # Delta für Calls: exp(-qT) * N(d1)
+            self.calls['delta'] = np.exp(-q * T_calls) * norm.cdf(d1_calls)
+            # Gamma für Calls und Puts (ist gleich): exp(-qT) * N'(d1) / (S * sigma * sqrt(T))
+            self.calls['gamma'] = np.exp(-q * T_calls) * norm.pdf(d1_calls) / (S * sigma_calls * np.sqrt(T_calls))
+
+        # --- Puts ---
         T_puts = self.puts['daysToExpiry'] / 365.0
-        T_puts = T_puts.replace(0, 1/365.0)
+        T_puts = T_puts.replace(0, 1e-6) # Ersetze 0 durch einen sehr kleinen Wert statt 1/365
         sigma_puts = self.puts['impliedVolatility']
         K_puts = self.puts['strike']
-        d1_puts = (np.log(S / K_puts) + (r + 0.5 * sigma_puts**2) * T_puts) / (sigma_puts * np.sqrt(T_puts))
-        self.puts['delta'] = norm.cdf(d1_puts) - 1
-        self.puts['gamma'] = norm.pdf(d1_puts) / (S * sigma_puts * np.sqrt(T_puts))
-        
-        # Calculate delta and gamma exposure
-        self.calls['delta_exposure'] = self.calls['delta'] * self.calls['openInterest']
-        self.puts['delta_exposure'] = self.puts['delta'] * self.puts['openInterest']
-        self.calls['gamma_exposure'] = self.calls['gamma'] * self.calls['openInterest']
-        self.puts['gamma_exposure'] = self.puts['gamma'] * self.puts['openInterest']
-        
+
+        with np.errstate(divide='ignore', invalid='ignore'): # Ignoriere Warnungen temporär
+            d1_puts = (np.log(S / K_puts) + (r - q + 0.5 * sigma_puts**2) * T_puts) / (sigma_puts * np.sqrt(T_puts))
+            d2_puts = d1_puts - sigma_puts * np.sqrt(T_puts)
+
+            # Delta für Puts: exp(-qT) * (N(d1) - 1)
+            self.puts['delta'] = np.exp(-q * T_puts) * (norm.cdf(d1_puts) - 1)
+            # Gamma für Calls und Puts (ist gleich): exp(-qT) * N'(d1) / (S * sigma * sqrt(T))
+            self.puts['gamma'] = np.exp(-q * T_puts) * norm.pdf(d1_puts) / (S * sigma_puts * np.sqrt(T_puts))
+
+        # --- Ersetze NaN/inf Werte, die durch Berechnungsfehler entstehen könnten ---
+        greeks_cols = ['delta', 'gamma']
+        self.calls.replace([np.inf, -np.inf], np.nan, inplace=True)
+        self.puts.replace([np.inf, -np.inf], np.nan, inplace=True)
+        self.calls.dropna(subset=greeks_cols, inplace=True)
+        self.puts.dropna(subset=greeks_cols, inplace=True)
+
+        if self.calls.empty or self.puts.empty:
+            print("Error: Calls or Puts DataFrame is empty after calculating and cleaning Greeks.")
+            return None
+
+        # --- Verbesserungen enden hier ---
+
+        # 4. Exposure berechnen (wie zuvor)
+        self.calls['delta_exposure'] = self.calls['delta'] * self.calls['openInterest'] * 100 # Pro Kontrakt (100 Aktien)
+        self.puts['delta_exposure'] = self.puts['delta'] * self.puts['openInterest'] * 100 # Pro Kontrakt (100 Aktien)
+        self.calls['gamma_exposure'] = self.calls['gamma'] * self.calls['openInterest'] * 100 # Pro Kontrakt (100 Aktien)
+        self.puts['gamma_exposure'] = self.puts['gamma'] * self.puts['openInterest'] * 100 # Pro Kontrakt (100 Aktien)
+
+        # Skaliere Gamma Exposure oft mit (Underlying Price)^2 / 10^9 für bessere Lesbarkeit (optional)
+        # self.calls['gamma_exposure_scaled'] = self.calls['gamma_exposure'] * S**2 / 1e9
+        # self.puts['gamma_exposure_scaled'] = self.puts['gamma_exposure'] * S**2 / 1e9
+
         # Save enhanced data
         self.calls.to_csv(os.path.join(self.data_dir, self.ticker, f"{self.ticker}_calls_with_greeks.csv"), index=False)
         self.puts.to_csv(os.path.join(self.data_dir, self.ticker, f"{self.ticker}_puts_with_greeks.csv"), index=False)
-        
-        # Aggregate by strike
+
+        # 5. Aggregation nach Strike Bins (wie zuvor, aber mit den neuen Daten)
+        min_strike = min(self.calls['strike'].min(), self.puts['strike'].min())
+        max_strike = max(self.calls['strike'].max(), self.puts['strike'].max())
+
+        # Stelle sicher, dass min < max
+        if min_strike >= max_strike:
+             # Fallback: Erstelle Bins um den aktuellen Preis herum, wenn Strikes zu eng sind
+             print(f"Warning: min_strike ({min_strike}) >= max_strike ({max_strike}). Creating bins around current price.")
+             center = self.current_price
+             width = max(50, self.current_price * 0.3) # Mindestens 50 Punkte oder 30% Breite
+             min_strike = center - width / 2
+             max_strike = center + width / 2
+             if min_strike >= max_strike: # Letzter Ausweg
+                  print("Error: Cannot create valid strike range for aggregation.")
+                  return None
+
+        strike_range = np.linspace(min_strike, max_strike, bins + 1) # bins+1 Kanten für 'bins' Intervalle
+
         def aggregate_greeks_by_strike(df, strike_range):
-            """Aggregate Greeks by strike price."""
             result = []
             for i in range(len(strike_range) - 1):
                 low = strike_range[i]
                 high = strike_range[i+1]
-                mask = (df['strike'] >= low) & (df['strike'] < high)
+                # Wichtig: beim letzten Bin auch die Obergrenze einschließen
+                if i == len(strike_range) - 2:
+                    mask = (df['strike'] >= low) & (df['strike'] <= high)
+                else:
+                    mask = (df['strike'] >= low) & (df['strike'] < high)
+
                 if mask.any():
                     subset = df[mask]
+                    # Stelle sicher, dass Spalten existieren, bevor sum() aufgerufen wird
+                    delta_exp = subset['delta_exposure'].sum() if 'delta_exposure' in subset else 0
+                    gamma_exp = subset['gamma_exposure'].sum() if 'gamma_exposure' in subset else 0
+                    oi = subset['openInterest'].sum() if 'openInterest' in subset else 0
+                    vol = subset['volume'].sum() if 'volume' in subset else 0
+
                     result.append({
                         'strike_low': low,
                         'strike_high': high,
                         'strike_mid': (low + high) / 2,
-                        'delta_exposure': subset['delta_exposure'].sum(),
-                        'gamma_exposure': subset['gamma_exposure'].sum(),
-                        'open_interest': subset['openInterest'].sum(),
-                        'volume': subset['volume'].sum()
+                        'delta_exposure': delta_exp,
+                        'gamma_exposure': gamma_exp,
+                        'open_interest': oi,
+                        'volume': vol
                     })
+            if not result: # Wenn keine Daten aggregiert werden konnten
+                return pd.DataFrame()
             return pd.DataFrame(result)
-        
+
         call_agg = aggregate_greeks_by_strike(self.calls, strike_range)
         put_agg = aggregate_greeks_by_strike(self.puts, strike_range)
-        
+
         # Combine for total exposure
-        if not call_agg.empty and not put_agg.empty:
-            # Create common strikes grid
-            all_strikes = sorted(set(call_agg['strike_mid']).union(set(put_agg['strike_mid'])))
-            
-            # Reindex to fill missing values
-            call_agg_reindexed = call_agg.set_index('strike_mid').reindex(all_strikes, fill_value=0)
-            put_agg_reindexed = put_agg.set_index('strike_mid').reindex(all_strikes, fill_value=0)
-            
-            # Combine call and put data
-            total_exposure = pd.DataFrame({
-                'strike': all_strikes,
-                'call_delta_exposure': call_agg_reindexed['delta_exposure'].values,
-                'put_delta_exposure': put_agg_reindexed['delta_exposure'].values,
-                'call_gamma_exposure': call_agg_reindexed['gamma_exposure'].values,
-                'put_gamma_exposure': put_agg_reindexed['gamma_exposure'].values,
-                'call_open_interest': call_agg_reindexed['open_interest'].values,
-                'put_open_interest': put_agg_reindexed['open_interest'].values
-            })
-            
-            total_exposure['net_delta_exposure'] = total_exposure['call_delta_exposure'] + total_exposure['put_delta_exposure']
-            total_exposure['net_gamma_exposure'] = total_exposure['call_gamma_exposure'] + total_exposure['put_gamma_exposure']
-            
-            # Save exposure data
-            total_exposure.to_csv(
-                os.path.join(self.results_dir, self.ticker, f"{self.ticker}_greeks_exposure_{self.today.strftime('%Y%m%d')}.csv"),
-                index=False
-            )
-            
-            return total_exposure
+        if call_agg.empty and put_agg.empty:
+             print("Warning: Aggregated dataframes for calls and puts are both empty.")
+             return None
+        elif call_agg.empty:
+             print("Warning: Aggregated dataframe for calls is empty.")
+             total_exposure = put_agg.rename(columns={
+                  'delta_exposure': 'put_delta_exposure',
+                  'gamma_exposure': 'put_gamma_exposure',
+                  'open_interest': 'put_open_interest',
+             })
+             total_exposure['call_delta_exposure'] = 0
+             total_exposure['call_gamma_exposure'] = 0
+             total_exposure['call_open_interest'] = 0
+             total_exposure = total_exposure.set_index('strike_mid')
+
+        elif put_agg.empty:
+            print("Warning: Aggregated dataframe for puts is empty.")
+            total_exposure = call_agg.rename(columns={
+                  'delta_exposure': 'call_delta_exposure',
+                  'gamma_exposure': 'call_gamma_exposure',
+                  'open_interest': 'call_open_interest',
+             })
+            total_exposure['put_delta_exposure'] = 0
+            total_exposure['put_gamma_exposure'] = 0
+            total_exposure['put_open_interest'] = 0
+            total_exposure = total_exposure.set_index('strike_mid')
         else:
-            print("Insufficient data for Greeks calculation")
-            return None
+            # Merge data using outer join to keep all strikes
+            total_exposure = pd.merge(
+                call_agg[['strike_mid', 'delta_exposure', 'gamma_exposure', 'open_interest']],
+                put_agg[['strike_mid', 'delta_exposure', 'gamma_exposure', 'open_interest']],
+                on='strike_mid',
+                how='outer',
+                suffixes=('_call', '_put')
+            ).fillna(0) # Fülle fehlende Werte mit 0 auf
+
+            # Umbenennen für Klarheit
+            total_exposure.rename(columns={
+                'delta_exposure_call': 'call_delta_exposure',
+                'gamma_exposure_call': 'call_gamma_exposure',
+                'open_interest_call': 'call_open_interest',
+                'delta_exposure_put': 'put_delta_exposure',
+                'gamma_exposure_put': 'put_gamma_exposure',
+                'open_interest_put': 'put_open_interest',
+                'strike_mid': 'strike' # Umbenennen für Konsistenz mit vorherigem Code
+            }, inplace=True)
+            total_exposure = total_exposure.set_index('strike') # Setze Strike als Index
+            total_exposure.sort_index(inplace=True) # Sortiere nach Strike
+
+
+        # Calculate net exposure
+        total_exposure['net_delta_exposure'] = total_exposure['call_delta_exposure'] + total_exposure['put_delta_exposure']
+        total_exposure['net_gamma_exposure'] = total_exposure['call_gamma_exposure'] + total_exposure['put_gamma_exposure']
+
+        # Save exposure data
+        total_exposure.reset_index().to_csv( # reset_index to save strike column
+            os.path.join(self.results_dir, self.ticker, f"{self.ticker}_greeks_exposure_{self.today.strftime('%Y%m%d')}.csv"),
+            index=False
+        )
+
+        return total_exposure.reset_index() # Gib DF mit Strike als Spalte zurück
+        
 
     def detect_gamma_flip(self):
         """
