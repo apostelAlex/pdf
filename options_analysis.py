@@ -306,6 +306,12 @@ class OptionsAnalyzer:
             return None
         # --- End Robust Filtering ---
 
+        #filter 0 day to expiry
+        dte_filter = 1 # Minimum days to expiry to include
+        self.calls = self.calls[self.calls['daysToExpiry'] >= dte_filter].copy()
+        self.puts = self.puts[self.puts['daysToExpiry'] >= dte_filter].copy()
+
+
         # 1. Dividendenrendite holen (optional, aber empfohlen)
         try:
             dividend_yield = self.stock.info.get('dividendYield', 0.0)
@@ -551,7 +557,9 @@ class OptionsAnalyzer:
         
         # Find the nearest flip point to current price
         try:
-            nearest_flip = flip_points.loc[flip_points['distance_from_spot'].idxmin()]
+
+            nearest_flip_idx = flip_points['distance_from_spot'].idxmin() # Get the index label (strike) from flip_points
+            nearest_flip = flip_points.loc[nearest_flip_idx]
             
             # Determine if flip is from positive to negative or vice versa
             if nearest_flip['sign_change'] > 0:
@@ -559,19 +567,26 @@ class OptionsAnalyzer:
             else:
                 flip_direction = "positive to negative (potential for increased volatility)"
             
-            # Safely get index positions
-            flip_index_pos = exposure_df.index.get_loc(nearest_flip.name)
+            # Find the integer position of this strike in the main exposure_df
+            # Need to find the index position corresponding to nearest_flip['strike']
+            # This assumes 'strike' is the index BEFORE reset_index in calculate_greeks
+            # --- Correction based on calculate_greeks returning reset_index ---
+            # The index IS reset, so nearest_flip_idx IS the integer index position in flip_points.
+            # We need the position in the ORIGINAL exposure_df
+            # Find the row in exposure_df that corresponds to the nearest_flip strike
+            original_index_pos = exposure_df[exposure_df['strike'] == nearest_flip['strike']].index[0]
+
+            flip_index_pos = original_index_pos # Use the integer position directly
             
-            # Safely get before/after gamma values
             if flip_index_pos > 0:
                 gamma_before = exposure_df.iloc[flip_index_pos - 1]['net_gamma_exposure']
             else:
-                gamma_before = 0
-                
+                gamma_before = 0 # Or NaN
+
             if flip_index_pos < len(exposure_df) - 1:
                 gamma_after = exposure_df.iloc[flip_index_pos + 1]['net_gamma_exposure']
             else:
-                gamma_after = 0
+                gamma_after = 0 # Or NaN
             
             flip_results = {
                 "ticker": self.ticker,
