@@ -14,6 +14,7 @@ Based on financial theory documents in pqf/resources/
 
 import os
 import datetime
+import time # Added for potential sleep/wait
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -28,6 +29,17 @@ from scipy.interpolate import griddata
 import seaborn as sns
 from scipy.stats import norm
 
+
+try:
+    from ib_insync import IB, Stock, util, Contract # Added
+    IB_INSYNC_AVAILABLE = True
+except ImportError:
+    IB_INSYNC_AVAILABLE = False
+    print("Warning: ib_insync library not found. TWS API functionality will be disabled.")
+
+
+
+
 # Create directories for data storage if they don't exist
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
@@ -38,18 +50,86 @@ for directory in [DATA_DIR, RESULTS_DIR, CHARTS_DIR]:
 
 class OptionsAnalyzer:
     """Class for analyzing options data and visualizing results."""
-    
-    def __init__(self, ticker, days_to_expiry=None, output_dir=None):
+
+    def __init__(self, ticker, days_to_expiry=None, output_dir=None,
+                use_tws=True, # New flag to control TWS usage
+                tws_host='127.0.0.1', # New TWS parameter
+                tws_port=7497,        # New TWS parameter (7497 TWS, 4002 Gateway)
+                tws_client_id=None,   # New TWS parameter (None generates random)
+                tws_timeout=5):       # New TWS parameter (seconds)
         """
         Initialize the OptionsAnalyzer with a ticker symbol.
-        
+
         Args:
             ticker (str): Stock ticker symbol
             days_to_expiry (int, optional): Filter expirations to this number of days. Default is None (all expirations)
             output_dir (str, optional): Directory for output files. Default is None (uses module directories)
+            use_tws (bool): If True, attempt to fetch the current price via TWS API first. Defaults to True.
+            tws_host (str): Hostname for running TWS/Gateway. Defaults to '127.0.0.1'.
+            tws_port (int): Port number for TWS/Gateway API. Defaults to 7497.
+            tws_client_id (int, optional): Client ID for TWS connection. If None, a random ID is generated. Defaults to None.
+            tws_timeout (int): Connection timeout for TWS in seconds. Defaults to 5.
         """
-        self.ticker = ticker
+        self.ticker = ticker.upper() # Standardize ticker
         self.stock = yf.Ticker(ticker)
+        self.today = datetime.datetime.now().date()
+        self.days_to_expiry = days_to_expiry
+        self.current_price = None # Initialize
+
+        # --- Price Fetching Logic ---
+        # 1. Try TWS API if requested and available
+        if use_tws and IB_INSYNC_AVAILABLE:
+            if tws_client_id is None:
+                # Generate a somewhat unique ID to avoid clashes if multiple scripts run
+                tws_client_id = int(time.time() * 10) % 1000 + 1 # Simple pseudo-random
+            print(f"Attempting to fetch price for {self.ticker} via TWS API (Host: {tws_host}, Port: {tws_port}, ClientId: {tws_client_id})...")
+            self.current_price = self._get_price_from_tws(
+                host=tws_host,
+                port=tws_port,
+                client_id=tws_client_id,
+                timeout=tws_timeout
+            )
+            if self.current_price is not None:
+                print(f"Using price from TWS API: {self.current_price:.2f} (Note: May be delayed)")
+            else:
+                print("Warning: Failed to get price from TWS API.")
+
+        # 2. Fallback to yfinance if TWS failed or wasn't used
+        if self.current_price is None:
+            print(f"Falling back to yfinance for {self.ticker} price...")
+            try:
+                # Fetching 2 days to get the latest close reliably
+                history = self.stock.history(period="2d")
+                if not history.empty:
+                    # Use the most recent closing price available in the history
+                    self.current_price = history['Close'].iloc[-1]
+                    price_date = history.index[-1].date()
+                    print(f"Using price from yfinance (most recent close): {self.current_price:.2f} from {price_date}")
+                else:
+                    # Broader fallback if history fails
+                    print("Warning: yfinance history fetch failed. Trying stock.info...")
+                    stock_info = self.stock.info
+                    self.current_price = stock_info.get('regularMarketPrice') or stock_info.get('currentPrice') or stock_info.get('previousClose')
+                    if self.current_price:
+                        print(f"Using price from yfinance stock.info: {self.current_price:.2f}")
+                    else:
+                        print(f"Warning: Could not get price for {self.ticker} from yfinance stock.info.")
+
+            except Exception as e:
+                print(f"Error fetching price from yfinance for {self.ticker}: {e}")
+
+        # 3. Final Check and Error if no price found
+        if self.current_price is None:
+            # Critical error - cannot proceed without a price
+            raise ValueError(f"FATAL: Could not determine current price for {self.ticker} from any source.")
+        else:
+            # Ensure price is float
+            try:
+                self.current_price = float(self.current_price)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"FATAL: Fetched price '{self.current_price}' for {self.ticker} is not a valid number. Error: {e}")
+
+        
         history = self.stock.history(period="2d")
         if len(history) > 1:
             self.current_price = history['Close'].iloc[-2]  # Gestern
@@ -80,7 +160,96 @@ class OptionsAnalyzer:
         self.calls = []
         self.puts = []
         self.load_options_data()
-    
+
+
+    def _get_price_from_tws(self, host, port, client_id, timeout):
+        """
+        Fetches the current market price using ib_insync.
+
+        Args:
+            host (str): TWS host.
+            port (int): TWS port.
+            client_id (int): TWS client ID.
+            timeout (int): Connection timeout in seconds.
+
+        Returns:
+            float: The market price (last or close), or None if fetching fails.
+        """
+        if not IB_INSYNC_AVAILABLE:
+            return None
+
+        ib = IB()
+        price = None
+
+        try:
+            # util.patchAsyncio() # Uncomment if running in Jupyter/interactive envs
+            # Connect to TWS/Gateway
+            ib.connect(host, port, clientId=client_id, timeout=timeout)
+            print("TWS Connected.")
+
+            # Define the contract (simple stock definition)
+            # Assumes stock trades on SMART exchange in USD. Adjust if needed.
+            contract = Stock(self.ticker, 'SMART', 'USD')
+            ib.qualifyContracts(contract) # Make sure the contract is specific
+
+            if not contract.conId:
+                print(f"Error: Could not qualify contract for {self.ticker}. Is the ticker valid?")
+                return None
+
+            print(f"Qualified Contract: {contract}")
+
+            # Request market data snapshot
+            # reqTickers is generally simpler for a quick snapshot
+            tickers = ib.reqTickers(contract)
+            ib.sleep(0.5) # Give a brief moment for data to populate, reqTickers often waits but belt-and-suspenders
+
+            if tickers and tickers[0]:
+                ticker_data = tickers[0]
+                # marketPrice() prioritizes last over close if available and valid
+                market_price = ticker_data.marketPrice()
+
+                if market_price is not None and not np.isnan(market_price):
+                    price = float(market_price)
+                    print(f"TWS Price (marketPrice): {price}")
+                else:
+                    # Fallback to close price if marketPrice failed
+                    close_price = ticker_data.close
+                    if close_price is not None and not np.isnan(close_price):
+                        price = float(close_price)
+                        print(f"TWS Price (close fallback): {price}")
+                    else:
+                        # Further fallback: last price?
+                        last_price = ticker_data.last
+                        if last_price is not None and not np.isnan(last_price):
+                            price = float(last_price)
+                            print(f"TWS Price (last fallback): {price}")
+                        else:
+                            print(f"Warning: No valid market, close, or last price found in TWS ticker for {self.ticker}.")
+                            # You could try bid/ask midpoint here if needed, but often less reliable as "the" price
+                            # mid_point = (ticker_data.bid + ticker_data.ask) / 2 ... add checks for valid bid/ask
+
+            else:
+                print(f"Warning: No ticker data received from TWS for {self.ticker}.")
+
+        except ConnectionRefusedError:
+            print(f"TWS Connection Error: Connection refused on {host}:{port}. Is TWS/Gateway running and API enabled?")
+        except TimeoutError:
+            print(f"TWS Connection Error: Connection timed out after {timeout}s.")
+        except Exception as e:
+            print(f"An unexpected error occurred during TWS interaction: {e}")
+            # Optionally log the full traceback for debugging
+            # import traceback
+            # traceback.print_exc()
+
+        finally:
+            if ib.isConnected():
+                print("Disconnecting from TWS.")
+                ib.disconnect()
+
+        return price
+
+
+
     def load_options_data(self):
         """Load options data for all expirations."""
         all_calls = []
