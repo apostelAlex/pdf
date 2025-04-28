@@ -44,8 +44,8 @@ def smooth_surface_rolling(surface, window_dte=3, window_strike=3, fill_median=T
     Apply a rolling mean smoothing on both DTE and strike axes.
     """
     surf = surface.copy()
-    surf = surf.rolling(window=window_dte, axis=0, min_periods=1, center=True).mean()
-    surf = surf.rolling(window=window_strike, axis=1, min_periods=1, center=True).mean()
+    surf = surf.rolling(window=window_dte, min_periods=1, center=True).mean()
+    surf = surf.T.rolling(window=window_strike, min_periods=1, center=True).mean().T
     if fill_median:
         surf = surf.fillna(surface.stack().median())
     return surf
